@@ -3,16 +3,13 @@ sudo apt install -y build-essential tk-dev libncurses5-dev libncursesw5-dev \
   libreadline-dev libdb5.3-dev libgdbm-dev libsqlite3-dev libssl-dev \
   libbz2-dev libexpat1-dev liblzma-dev zlib1g-dev libffi-dev
 
-
 wget https://www.python.org/ftp/python/3.10.8/Python-3.10.8.tgz
 tar -zxvf Python-3.10.8.tgz
 cd Python-3.10.8
 
-
 ./configure --enable-optimizations
-make -j 4        # or fewer cores if slow
+make -j 4        
 sudo make altinstall
-
 
 sudo apt install -y python3-libcamera python3-kms++ 
 pip install git+https://github.com/raspberrypi/picamera2.git
@@ -20,27 +17,21 @@ sudo apt update
 sudo apt install -y python3-libcamera python3-kms++ libcap-dev libopenblas-dev
 pip install --no-cache-dir git+https://github.com/raspberrypi/picamera2.git
 
-
 pip install opencv-python-headless
 
-
 sudo apt install libopenblas-dev liblapack-dev
-
 
 sudo apt update
 sudo apt install -y libjpeg-dev libtiff-dev libpng-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev gfortran cmake
 
-
 wget https://github.com/PINTO0309/Tensorflow-bin/releases/download/v2.15.0.post1/tensorflow-2.15.0.post1-cp310-none-linux_aarch64.whl
 pip install tensorflow-2.15.0.post1-cp310-none-linux_aarch64.whl
 
-
 sudo apt update && sudo apt upgrade -y
-
 
 sudo raspi-config
 # Interfacing Options → I2C → Enable → Reboot
 
-
 pip install RPLCD smbus2 RPi.GPIO adafruit-pca9685
+
 source ~/tf-env310/bin/activate
