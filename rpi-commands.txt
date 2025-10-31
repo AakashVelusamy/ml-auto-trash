@@ -35,3 +35,5 @@ sudo raspi-config
 pip install RPLCD smbus2 RPi.GPIO adafruit-pca9685
 
 source ~/tf-env310/bin/activate
+
+scp pi@192.168.0.175:/home/pi/tmp/captured.jpg "C:\Users\Aakash V\Downloads\captured.jpg"
