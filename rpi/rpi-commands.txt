@@ -35,3 +35,21 @@ sudo raspi-config
 pip install RPLCD smbus2 RPi.GPIO adafruit-pca9685
 
 source ~/venv/bin/activate
+
+sudo nano /etc/systemd/system/kuppa_thotti.service
+
+sudo systemctl daemon-reload
+sudo systemctl enable kuppa_thotti.service
+sudo systemctl start kuppa_thotti.service
+
+sudo systemctl status kuppa_thotti.service
+
+sudo chmod 666 /home/pi/logs.txt
+sudo chown pi:pi /home/pi/logs.txt
+sudo chmod 644 /home/pi/logs.txt
+sudo chmod +x /usr/bin/rpicam-still
+sudo chown -R pi:pi /home/pi/venv
+sudo chmod -R 755 /home/pi/venv
+
+sudo systemctl daemon-reload
+sudo systemctl restart kuppa_thotti.service

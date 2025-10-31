@@ -1,0 +1,15 @@
+[Unit]
+Description=Kuppa Thotti Service
+After=network.target
+
+[Service]
+ExecStart=/home/pi/venv/bin/python /home/pi/classifier.py
+WorkingDirectory=/home/pi
+StandardOutput=append:/home/pi/logs.txt
+StandardError=append:/home/pi/logs.txt
+Restart=always
+User=pi
+Environment="PATH=/home/pi/venv/bin"
+
+[Install]
+WantedBy=multi-user.target
