@@ -3,8 +3,36 @@ import numpy as np
 import cv2
 import threading
 import time
+import RPi.GPIO as GPIO
 from RPLCD.i2c import CharLCD
 from keras.models import load_model
+
+# ----------------------------
+# Ultrasonic Sensor Setup
+# ----------------------------
+TRIG = 23
+ECHO = 24
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(TRIG, GPIO.OUT)
+GPIO.setup(ECHO, GPIO.IN)
+
+def get_distance():
+    """Measure distance using HC-SR04."""
+    GPIO.output(TRIG, True)
+    time.sleep(0.00001)
+    GPIO.output(TRIG, False)
+
+    start_time = time.time()
+    stop_time = time.time()
+
+    while GPIO.input(ECHO) == 0:
+        start_time = time.time()
+    while GPIO.input(ECHO) == 1:
+        stop_time = time.time()
+
+    elapsed = stop_time - start_time
+    distance = (elapsed * 34300) / 2  # cm
+    return distance
 
 # ----------------------------
 # LCD Setup (I2C 16x2)
@@ -56,11 +84,11 @@ lcd.create_char(6, dustbin)
 # Animation thread
 # ----------------------------
 animation_running = False
-animation_status_text = ""  # "capturing..." / "predicting..."
+animation_status_text = ""
 
 def pacman_loop():
-    """Loop Pac-Man eating across LCD until animation_running stops."""
-    items = [2, 3, 4, 5, 6]  # icons (food)
+    """Pac-Man animation while capturing/predicting."""
+    items = [2, 3, 4, 5, 6]
     try:
         while animation_running:
             for pos in range(0, 16):
@@ -68,27 +96,26 @@ def pacman_loop():
                     break
 
                 lcd.clear()
-                # Draw food items ahead of pacman
+                # Draw items ahead of Pac-Man
                 for i, it in enumerate(items):
                     food_pos = 3 + (i * 3)
                     if food_pos > pos:
                         lcd.cursor_pos = (0, food_pos)
                         lcd.write_string(chr(it))
 
-                # Pacman open/closed mouth
+                # Pac-Man (open/close)
                 lcd.cursor_pos = (0, pos)
                 lcd.write_string(chr(0 if pos % 2 == 0 else 1))
 
-                # Second line status
+                # Second line text
                 lcd.cursor_pos = (1, 0)
                 lcd.write_string(animation_status_text[:16].ljust(16))
 
-                time.sleep(0.35)  # movement speed
+                time.sleep(0.45)  # slowed down
 
-            time.sleep(0.7)  # pause before restart
+            time.sleep(0.7)
     except Exception:
         pass
-
 
 # ----------------------------
 # Startup Display
@@ -132,61 +159,70 @@ output_path = "/home/pi/tmp/captured.jpg"
 
 try:
     while True:
-        input("➡️  Press ENTER to capture: ")
+        dist = get_distance()
+        if dist < 15:
+            print(f"Object detected at {dist:.1f} cm")
 
-        # Start animation thread
-        animation_status_text = "capturing..."
-        animation_running = True
-        anim_thread = threading.Thread(target=pacman_loop, daemon=True)
-        anim_thread.start()
+            # Immediate LCD feedback
+            lcd.clear()
+            lcd.cursor_pos = (0, 0)
+            lcd.write_string("kuppa identified")
+            lcd.cursor_pos = (1, 0)
+            lcd.write_string(" " + chr(6))
+            time.sleep(2)
 
-        # Capture image
-        subprocess.run(["rpicam-still", "-o", output_path, "-t", "1000", "-n"], check=True)
+            # Start Pac-Man animation
+            animation_status_text = "capturing..."
+            animation_running = True
+            anim_thread = threading.Thread(target=pacman_loop, daemon=True)
+            anim_thread.start()
 
-        # Switch to predicting phase
-        animation_status_text = "predicting..."
+            # Capture image
+            subprocess.run(["rpicam-still", "-o", output_path, "-t", "1000", "-n"], check=True)
 
-        # Read image
-        img = cv2.imread(output_path)
-        if img is None:
-            print("⚠️ Failed to read captured image.")
+            # Switch to predicting
+            animation_status_text = "predicting..."
+
+            img = cv2.imread(output_path)
+            if img is None:
+                print("⚠️ Failed to read captured image.")
+                animation_running = False
+                anim_thread.join()
+                lcd.clear()
+                lcd.write_string("capture failed")
+                time.sleep(2)
+                continue
+
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img = cv2.resize(img, INPUT_SIZE, interpolation=cv2.INTER_CUBIC)
+            img_array = np.expand_dims(img, axis=0)
+            preds = model.predict(img_array)
+            pred_idx = int(np.argmax(preds))
+            pred_class = CLASSES[pred_idx]
+            confidence = float(np.max(preds)) * 100.0
+
+            # Stop Pac-Man
             animation_running = False
             anim_thread.join()
+
+            # Show result
             lcd.clear()
-            lcd.write_string("capture failed")
-            time.sleep(2)
-            continue
+            lcd.cursor_pos = (0, 0)
+            lcd.write_string(pred_class[:16])
+            lcd.cursor_pos = (1, 0)
+            lcd.write_string(f"{confidence:.2f}%")
+            print(f"🧠 Predicted: {pred_class} ({confidence:.2f}%)")
+            time.sleep(6)
 
-        # Preprocess
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img = cv2.resize(img, INPUT_SIZE, interpolation=cv2.INTER_CUBIC)
-        img_array = np.expand_dims(img, axis=0)
+            # Back to ready
+            lcd.clear()
+            lcd.cursor_pos = (0, 0)
+            lcd.write_string("kuppa thotti " + chr(6))
+            lcd.cursor_pos = (1, 0)
+            lcd.write_string("ready!")
+            time.sleep(1.5)
 
-        # Predict
-        preds = model.predict(img_array)
-        pred_idx = int(np.argmax(preds))
-        pred_class = CLASSES[pred_idx]
-        confidence = float(np.max(preds)) * 100.0
-
-        # Stop animation
-        animation_running = False
-        anim_thread.join()
-
-        # Display prediction
-        lcd.clear()
-        lcd.cursor_pos = (0, 0)
-        lcd.write_string(pred_class[:16])
-        lcd.cursor_pos = (1, 0)
-        lcd.write_string(f"{confidence:.2f}%")
-        print(f"🧠 Predicted: {pred_class} ({confidence:.2f}% confidence)")
-        time.sleep(10)
-
-        # Back to ready
-        lcd.clear()
-        lcd.cursor_pos = (0, 0)
-        lcd.write_string("kuppa thotti " + chr(6))
-        lcd.cursor_pos = (1, 0)
-        lcd.write_string("ready!")
+        time.sleep(0.2)
 
 except KeyboardInterrupt:
     print("\nExiting on user request.")
@@ -194,5 +230,6 @@ finally:
     animation_running = False
     lcd.clear()
     lcd.write_string("goodbye!")
-    time.sleep(7)
+    time.sleep(5)
     lcd.clear()
+    GPIO.cleanup()
